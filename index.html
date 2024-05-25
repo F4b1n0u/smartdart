@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dartboard</title>
+    <script src="https://pixijs.download/release/pixi.min.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <script>
+
+      const totalSegments = 20
+      const multipliers =  [
+        "1-slim",
+        "triple",
+        "1-fat",
+        "double"
+      ]
+
+      const size = 3
+
+      const colorMapping = {
+        0: { // even
+          "1-slim": 'black',
+          "triple": 'red',
+          "1-fat": 'black',
+          "double": 'red'
+        },
+        1: { // odd
+          "1-slim": 'white',
+          "triple": 'green',
+          "1-fat": 'white',
+          "double": 'green'
+        }
+      }
+
+      // const colorMapping = {
+      //   0: { // even
+      //     "1-slim": 'blue',
+      //     "triple": 'black',
+      //     "1-fat": 'white',
+      //     "double": 'brown'
+      //   },
+      //   1: { // odd
+      //     "1-slim": 'blue',
+      //     "triple": 'black',
+      //     "1-fat": 'white',
+      //     "double": 'brown'
+      //   }
+      // }
+
+
+      const angleStepInRadian = 2 * Math.PI / totalSegments
+        function drawDartboardSegment(index, multiplier, app) {
+            const centerX = app.screen.width /2
+            const centerY = app.screen.height /2
+
+            const segmentAngle = 360 / totalSegments;  // Each segment covers 18 degrees
+            const startAngle = -90 -(segmentAngle/2) + (index * segmentAngle);  // Start angle for the segment
+            const endAngle = startAngle + segmentAngle;  // End angle for the segment
+
+            const segmentAngleInRadian =  Math.PI / 180 * segmentAngle // Each segment covers 18 degrees
+            const startAngleInRadian = Math.PI / 180 * startAngle
+            const endAngleInRadian = Math.PI / 180 * endAngle
+
+            // Radii for different multipliers
+            const radii = {
+              "1-slim": [9, 97],
+              "triple": [97, 107], // 10
+              "1-fat": [107, 160], // 53
+              "double": [160, 170] // 10
+            };
+
+            const [innerRadius, outerRadius] = radii[multiplier];
+
+            // Function to convert polar coordinates to Cartesian
+            function polarToCartesian(radius, angleInRadians) {
+                // const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+                return {
+                    x: centerX + (radius * Math.cos(angleInRadians)),
+                    y: centerY + (radius * Math.sin(angleInRadians))
+                };
+            }
+
+            // Create a PixiJS Graphics object
+            const graphics = new PIXI.Graphics();
+
+            // Set line style and color
+            // Start and end points for inner and outer arcs
+            const startInner = polarToCartesian(innerRadius * size, startAngleInRadian);
+            const endInner = polarToCartesian(innerRadius * size, endAngleInRadian);
+            const startOuter = polarToCartesian(outerRadius * size, startAngleInRadian);
+            const endOuter = polarToCartesian(outerRadius * size, endAngleInRadian);
+
+            // Draw the segment
+            graphics.moveTo(startInner.x, startInner.y);
+            graphics.arc(centerX, centerY, innerRadius * size, startAngleInRadian, endAngleInRadian);
+            graphics.lineTo(endOuter.x, endOuter.y);
+            graphics.arc(centerX, centerY, outerRadius * size, endAngleInRadian, startAngleInRadian, true);
+            graphics.lineTo(startInner.x, startInner.y);
+            graphics.fill(colorMapping[index%2][multiplier])
+            graphics.closePath();
+ 
+           ({
+              centerX, centerY, startAngle, endAngle
+            })
+
+            return graphics;
+        }
+
+        const main = async () => {
+          // Create a new application
+          const app = new PIXI.Application({
+            antialias: true,
+            autoDensity: true,
+            // resolution: 20,
+          });
+
+          // Initialize the application
+          await app.init({ background: 'pink', resizeTo: window });
+
+          // Append the application canvas to the document body
+          document.body.appendChild(app.canvas);
+
+          // Create and add a container to the stage
+          const container = new PIXI.Container();
+
+          // Move the container to the center
+          container.x = app.screen.width / 2;
+          container.y = app.screen.height / 2;
+
+          // Center the bunny sprites in local container coordinates
+          container.pivot.x = container.width / 2;
+          container.pivot.y = container.height / 2;
+          
+          // Draw the entire dartboard
+          // "triple", "1-fat", "double"
+          for (let i = 0; i < totalSegments; i++) {
+              [...
+              [
+                "1-slim",
+                "triple",
+                "1-fat",
+                "double"
+              ]].forEach(multiplier => {
+                  const segmentGraphics = drawDartboardSegment(i, multiplier, app);
+                  app.stage.addChild(segmentGraphics);
+              });
+          }
+
+          // const slim = drawDartboardSegment(0, '1-slim', app);
+          // app.stage.addChild(slim);
+
+          // const tripple = drawDartboardSegment(0, 'triple', app);
+          // app.stage.addChild(tripple);
+
+          // const fat = drawDartboardSegment(0, '1-fat', app);
+          // app.stage.addChild(fat);
+
+          // const double = drawDartboardSegment(0, 'double', app);
+          // app.stage.addChild(double);
+        }
+
+        main()
+        
+    </script>
+</body>
+</html>
