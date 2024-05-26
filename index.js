@@ -1,7 +1,9 @@
 const smartboard = require('./smartboard')();
 
+const boardUuid = '2310b313636' // uni to my own board, check logs to see you own board uuid
+
 const config = {
-    smartboard_button_number: 0
+    smartboard_button_number: 0 // ??
 }
 
 // Start scanning for the board

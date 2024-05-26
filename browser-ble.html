@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dartboard</title>
+    <script src="https://pixijs.download/release/pixi.min.js"></script>
+  </head>
+  <body>
+    <button id="connect">Connect to Bluetooth Device</button>
+
+    <div id="canvas-container"></div>
+
+    <script>
+      // 0000fff0-0000-1000-8000-00805f9b34fb
+      // 0000fff2-0000-1000-8000-00805f9b34fb
+      const initBoardConnection = ({ onDartLanding, onButtonPress }) => {
+        document
+          .getElementById("connect")
+          .addEventListener("click", async () => {
+            try {
+              const device = await navigator.bluetooth.requestDevice({
+                filters: [
+                  {
+                    namePrefix: "Unicorn Smartboard",
+                  },
+                ],
+                optionalServices: [0xfff0],
+              });
+              console.log("Device:", device);
+
+              const server = await device.gatt.connect();
+              console.log("Server:", server);
+
+              const service = await server.getPrimaryService(0xfff0);
+              console.log("Service:", service);
+
+              const led = await service.getCharacteristic(0xfff2);
+              console.log("led:", led);
+
+              const value = await led.writeValueWithResponse(
+                new Uint8Array([0x03])
+              );
+
+              const notification = await service.getCharacteristic(0xfff1);
+              console.log("notification:", notification);
+
+              notification.addEventListener(
+                "characteristicvaluechanged",
+                handleNotifications
+              );
+              await notification.startNotifications();
+              console.log("Notifications started");
+            } catch (error) {
+              console.error("Error:", error);
+            }
+          });
+
+        function handleNotifications(event) {
+          const { value } = event.target;
+          const multiplierMapper = ["1-fat", "1-slim", "double", "triple"];
+          var dart = {
+            score: value.getUint8(0),
+            multiplier: multiplierMapper[value.getUint8(1)],
+          };
+          if (dart.multiplier == 170 && dart.score == 85) {
+            onButtonPress();
+            console.log("button pressed");
+          } else {
+            onDartLanding(dart);
+            console.log({ dart });
+          }
+        }
+      };
+    </script>
+
+    <script>
+      const totalSegments = 20;
+      const multipliers = ["1-slim", "triple", "1-fat", "double"];
+
+      const size = 3;
+
+      const colorMapping = {
+        0: {
+          // even
+          "1-slim": "black",
+          triple: "red",
+          "1-fat": "black",
+          double: "red",
+        },
+        1: {
+          // odd
+          "1-slim": "white",
+          triple: "blue",
+          "1-fat": "white",
+          double: "blue",
+        },
+      };
+
+      // const colorMapping = {
+      //   0: { // even
+      //     "1-slim": 'blue',
+      //     "triple": 'black',
+      //     "1-fat": 'white',
+      //     "double": 'brown'
+      //   },
+      //   1: { // odd
+      //     "1-slim": 'blue',
+      //     "triple": 'black',
+      //     "1-fat": 'white',
+      //     "double": 'brown'
+      //   }
+      // }
+      const app = new PIXI.Application({
+          antialias: true,
+          autoDensity: true,
+          // resolution: 20,
+        });
+      const angleStepInRadian = (2 * Math.PI) / totalSegments;
+      function drawDartboardSegment(index, multiplier, forcedColor) {
+        const centerX = app.screen.width / 2;
+        const centerY = app.screen.height / 2;
+
+        const segmentAngle = 360 / totalSegments; // Each segment covers 18 degrees
+        const startAngle = -90 - segmentAngle / 2 + index * segmentAngle; // Start angle for the segment
+        const endAngle = startAngle + segmentAngle; // End angle for the segment
+
+        const segmentAngleInRadian = (Math.PI / 180) * segmentAngle; // Each segment covers 18 degrees
+        const startAngleInRadian = (Math.PI / 180) * startAngle;
+        const endAngleInRadian = (Math.PI / 180) * endAngle;
+
+        // Radii for different multipliers
+        const radii = {
+          "1-slim": [9, 97],
+          triple: [97, 107], // 10
+          "1-fat": [107, 160], // 53
+          double: [160, 170], // 10
+        };
+
+        const [innerRadius, outerRadius] = radii[multiplier];
+
+        // Function to convert polar coordinates to Cartesian
+        function polarToCartesian(radius, angleInRadians) {
+          // const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+          return {
+            x: centerX + radius * Math.cos(angleInRadians),
+            y: centerY + radius * Math.sin(angleInRadians),
+          };
+        }
+
+        // Create a PixiJS Graphics object
+        const graphics = new PIXI.Graphics();
+
+        // Set line style and color
+        // Start and end points for inner and outer arcs
+        const startInner = polarToCartesian(
+          innerRadius * size,
+          startAngleInRadian
+        );
+        const endInner = polarToCartesian(innerRadius * size, endAngleInRadian);
+        const startOuter = polarToCartesian(
+          outerRadius * size,
+          startAngleInRadian
+        );
+        const endOuter = polarToCartesian(outerRadius * size, endAngleInRadian);
+
+        // Draw the segment
+        graphics.moveTo(startInner.x, startInner.y);
+        graphics.arc(
+          centerX,
+          centerY,
+          innerRadius * size,
+          startAngleInRadian,
+          endAngleInRadian
+        );
+        graphics.lineTo(endOuter.x, endOuter.y);
+        graphics.arc(
+          centerX,
+          centerY,
+          outerRadius * size,
+          endAngleInRadian,
+          startAngleInRadian,
+          true
+        );
+        graphics.lineTo(startInner.x, startInner.y);
+        graphics.fill(forcedColor || colorMapping[index % 2][multiplier]);
+        graphics.closePath();
+
+        ({
+          centerX,
+          centerY,
+          startAngle,
+          endAngle,
+        });
+        app.stage.addChild(graphics);
+        return graphics;
+      }
+
+      const drawBoard = async () => {
+        // Create a new application
+   
+
+        // Initialize the application
+        await app.init({ background: "pink", resizeTo: window });
+
+        // Append the application canvas to the document body
+        document.body.appendChild(app.canvas);
+
+        // Create and add a container to the stage
+        const container = new PIXI.Container();
+
+        // Move the container to the center
+        container.x = app.screen.width / 2;
+        container.y = app.screen.height / 2;
+
+        // Center the bunny sprites in local container coordinates
+        container.pivot.x = container.width / 2;
+        container.pivot.y = container.height / 2;
+
+        // Draw the entire dartboard
+        // "triple", "1-fat", "double"
+        for (let i = 0; i < totalSegments; i++) {
+          [...["1-slim", "triple", "1-fat", "double"]].forEach((multiplier) => {
+            const segmentGraphics = drawDartboardSegment(i, multiplier);
+            
+          });
+        }
+
+        // const slim = drawDartboardSegment(0, '1-slim', app);
+        // app.stage.addChild(slim);
+
+        // const tripple = drawDartboardSegment(0, 'triple', app);
+        // app.stage.addChild(tripple);
+
+        // const fat = drawDartboardSegment(0, '1-fat', app);
+        // app.stage.addChild(fat);
+
+        // const double = drawDartboardSegment(0, 'double', app);
+        // app.stage.addChild(double);
+      };
+    </script>
+
+    <script>
+      const BOARD = [
+        20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5,
+      ];
+
+      initBoardConnection({
+        onDartLanding: (dart) => {
+          drawDartboardSegment(BOARD.indexOf(dart.score), dart.multiplier, 'green');
+        },
+        onButtonPress: () => {},
+      });
+      drawBoard();
+    </script>
+  </body>
+</html>
